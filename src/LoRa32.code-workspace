@@ -1,0 +1,38 @@
+{
+	"folders": [
+		{
+			"path": "../../LoRa32"
+		},
+		{
+			"name": "TTGO E32",
+			"path": ".."
+		},
+		{
+			"name": "TTGO sender",
+			"path": "../../TTGO sender"
+		},
+		{
+			"name": "TTGO E32 Receiver device 2",
+			"path": "../../TTGO E32 Receiver device 2"
+		},
+		{
+			"name": "TTGO E32 device 3 Receiver",
+			"path": "../../TTGO E32 device 3 Receiver"
+		},
+		{
+			"name": "LD2410",
+			"path": "../../LD2410"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.tcc": "cpp",
+			"deque": "cpp",
+			"string": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"vector": "cpp",
+			"system_error": "cpp"
+		}
+	}
+}
