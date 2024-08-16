@@ -12,7 +12,7 @@
 #define RST     14   // GPIO14 -- RESET (If Lora does not work, replace it with GPIO14)
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
-const String deviceKey = "killRusnya_2";
+const String deviceKey = "killRusnya_1";
 const int module1OutputPin = 4;
 const int module2OutputPin = 25;
 const String enableModule1Command = "enableModule1";
