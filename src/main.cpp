@@ -12,6 +12,7 @@
 #define RST     14   // GPIO14 -- RESET (If Lora does not work, replace it with GPIO14)
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
+const String deviceKey = "killRusnya_1";
 const int module1OutputPin = 4;
 const int module2OutputPin = 25;
 const String enableModule1Command = "enableModule1";
@@ -82,7 +83,7 @@ void sendCommand(String command) {
   for (int x=0; x<3; x=x+1) {
   // Send the command to the LoRa module
     LoRa.beginPacket();
-    LoRa.print(command);
+    LoRa.print(command+deviceKey);
     LoRa.endPacket();
     delay(50);
 	}
@@ -107,7 +108,7 @@ void loop() {
     Serial.print("' with RSSI ");
     Serial.println(LoRa.packetRssi());
 
-    if (receivedMessage.indexOf(enableModule1Command) != -1) {
+    if (receivedMessage.indexOf(enableModule1Command+deviceKey) != -1) {
       lastInputCommand = receivedMessage;
       digitalWrite(module1OutputPin, HIGH); 
       Serial.println("ON MODULE 1");
@@ -115,7 +116,7 @@ void loop() {
       sendCommand(isEnabledModule1Command);
     }
 
-    if (receivedMessage.indexOf(disableModule1Command) != -1) {
+    if (receivedMessage.indexOf(disableModule1Command+deviceKey) != -1) {
       lastInputCommand = receivedMessage;
       digitalWrite(module1OutputPin, LOW); 
       Serial.println("OFF MODULE 1");
@@ -123,7 +124,7 @@ void loop() {
       sendCommand(isDisabledModule1Command);
     }
 
-    if (receivedMessage.indexOf(enableModule2Command) != -1) {
+    if (receivedMessage.indexOf(enableModule2Command+deviceKey) != -1) {
       lastInputCommand = receivedMessage;
       digitalWrite(module2OutputPin, HIGH); 
       Serial.println("ON MODULE 2");
@@ -131,7 +132,7 @@ void loop() {
       sendCommand(isEnabledModule2Command);
     }
 
-    if (receivedMessage.indexOf(disableModule2Command) != -1) {
+    if (receivedMessage.indexOf(disableModule2Command+deviceKey) != -1) {
       lastInputCommand = receivedMessage;
       digitalWrite(module2OutputPin, LOW); 
       Serial.println("OFF MODULE 2");
@@ -139,7 +140,7 @@ void loop() {
       sendCommand(isDisabledModule2Command);
     }
 
-    if (receivedMessage.indexOf(getModulesStatesCommand) != -1) { 
+    if (receivedMessage.indexOf(getModulesStatesCommand+deviceKey) != -1) { 
       lastInputCommand = receivedMessage;
       Serial.println("Get modules states: ");
       Serial.println("module 1 state: " + module1State);
