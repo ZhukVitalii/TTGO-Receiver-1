@@ -22,6 +22,18 @@
 		{
 			"name": "LD2410",
 			"path": "../../LD2410"
+		},
+		{
+			"name": "ESP-32 main",
+			"path": "../../ESP-32 main"
+		},
+		{
+			"name": "base moving detection station",
+			"path": "../../base moving detection station"
+		},
+		{
+			"name": "Moving_detection_sensor",
+			"path": "../../Moving_detection_sensor"
 		}
 	],
 	"settings": {

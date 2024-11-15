@@ -5,6 +5,10 @@
 #include <Wire.h>  
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <DFRobot_BMM150.h>
 #define SCK     5    // GPIO5  -- SCK
 #define MISO    19   // GPIO19 -- MISO
 #define MOSI    27   // GPIO27 -- MOSI
@@ -12,7 +16,7 @@
 #define RST     14   // GPIO14 -- RESET (If Lora does not work, replace it with GPIO14)
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
-const String deviceKey = "killRusnya_1";
+const String deviceKey = "killRusnya_2";
 const int module1OutputPin = 4;
 const int module2OutputPin = 25;
 const String enableModule1Command = "enableModule1";
@@ -27,11 +31,13 @@ const String isEnabledModule2Command = "enabledModule2";
 const String isDisabledModule2Command = "disabledModule2";
 const String module1StateKey = "module1State";
 const String module2StateKey = "module2State";
+const String azimutDevice1Command = "azimutDevice1";
 String module1State = "disabledModule1";
 String module2State = "disabledModule2";
 String moduleName ="Vitalikiki M1";
 String lastInputCommand = "";
 String lastOutputCommand = "";
+float azimut;
 
 
 // for LED 
@@ -41,11 +47,14 @@ String lastOutputCommand = "";
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#include <Adafruit_Sensor.h>
+#include <Adafruit_HMC5883_U.h>
 
+
+DFRobot_BMM150_I2C bmm150(&Wire, I2C_ADDRESS_4);
 void setup() {
   Serial.begin(9600);
   while (!Serial);
-
   Serial.println("LoRa Receiver");
   SPI.begin();
   LoRa.setPins(SS,RST,DI0);
@@ -64,6 +73,23 @@ void setup() {
   }
   display.display();
   delay(2000); // Pause for 2 seconds
+  while(bmm150.begin()){
+    Serial.println("bmm150 init failed, Please try again!");
+    delay(1000);
+  } Serial.println("bmm150 init success!");
+  bmm150.setOperationMode(BMM150_POWERMODE_NORMAL);
+  bmm150.setPresetMode(BMM150_PRESETMODE_HIGHACCURACY);
+  bmm150.setRate(BMM150_DATA_RATE_10HZ);
+
+  /**!
+   * Enable the measurement at x-axis, y-axis and z-axis, default to be enabled, no config required, the geomagnetic data at x, y and z will be incorrect when disabled.
+   * Refer to setMeasurementXYZ() function in the .h file if you want to configure more parameters.
+   */
+  bmm150.setMeasurementXYZ();
+
+
+  delay(1000);
+
 }
 void printInfo(){
   display.clearDisplay();
@@ -75,6 +101,8 @@ void printInfo(){
   display.println("Last sent cmd : " + lastOutputCommand);
   display.setCursor(0, 40);  
   display.println(moduleName);
+  display.setCursor(0, 50);  
+  display.println(azimut);
   display.display();
 }
 void sendCommand(String command) {
@@ -89,9 +117,35 @@ void sendCommand(String command) {
 	}
   lastOutputCommand = command;
 }
+void sendAzimutCommand(float azimut) {
+  Serial.print("Sending azimut: ");
+  Serial.println(azimut);
+  for (int x=0; x<3; x=x+1) {
+  // Send the command to the LoRa module
+    LoRa.beginPacket();
+    LoRa.print(azimutDevice1Command+deviceKey+";"+azimut);
+    LoRa.endPacket();
+    delay(50);
+	}
+  lastOutputCommand = azimutDevice1Command;
 
+  
+}
+ void checkAzimut(){
+  sBmm150MagData_t magData = bmm150.getGeomagneticData();
+  Serial.print("mag x = "); Serial.print(magData.x); Serial.println(" uT");
+  Serial.print("mag y = "); Serial.print(magData.y); Serial.println(" uT");
+  Serial.print("mag z = "); Serial.print(magData.z); Serial.println(" uT");
 
-void loop() {
+  azimut = bmm150.getCompassDegree();
+  Serial.print("the angle between the pointing direction and north (counterclockwise) is:");
+  Serial.println(azimut);
+  Serial.println("--------------------------------");
+  delay(100);
+
+ }
+
+void loop() {  
   printInfo();
   // try to parse packet
   int packetSize = LoRa.parsePacket();
@@ -149,6 +203,8 @@ void loop() {
       sendCommand(module1State);
       delay(100);
       sendCommand(module2State);
+      checkAzimut();
+      sendAzimutCommand(azimut);
     }
   }
 }
