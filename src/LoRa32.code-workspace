@@ -34,6 +34,10 @@
 		{
 			"name": "Moving_detection_sensor",
 			"path": "../../Moving_detection_sensor"
+		},
+		{
+			"name": "Main Sender LCD",
+			"path": "../../Main Sender LCD"
 		}
 	],
 	"settings": {
