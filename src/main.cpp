@@ -17,6 +17,10 @@
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
 const String deviceKey = "killRusnya_2";
+
+const float minusValueForAzimuth = 30.3;
+const float plusValueForAzimuth = 0;
+
 const int module1OutputPin = 4;
 const int module2OutputPin = 25;
 const String enableModule1Command = "enableModule1";
@@ -32,13 +36,19 @@ const String isDisabledModule2Command = "disabledModule2";
 const String module1StateKey = "module1State";
 const String module2StateKey = "module2State";
 const String azimutDevice1Command = "azimutDevice1";
+const String magDataChangedCommand = "magDataChanged";
 String module1State = "disabledModule1";
 String module2State = "disabledModule2";
 String moduleName ="Vitalikiki M1";
 String lastInputCommand = "";
 String lastOutputCommand = "";
 float azimut;
+int counter = 0;
+int lastAzimutCheckin = 0;
 
+int initMagDataX = 0;
+int initMagDataY = 0;
+int initMagDataZ = 0;
 
 // for LED 
 #define OLED_I2C_ADDRESS 0x3C
@@ -52,6 +62,14 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
 DFRobot_BMM150_I2C bmm150(&Wire, I2C_ADDRESS_4);
+
+void setInitMagData(){
+  sBmm150MagData_t magData = bmm150.getGeomagneticData();
+  initMagDataX = magData.x;
+  initMagDataY = magData.y;
+  initMagDataZ = magData.z;  
+}
+
 void setup() {
   Serial.begin(9600);
   while (!Serial);
@@ -86,10 +104,8 @@ void setup() {
    * Refer to setMeasurementXYZ() function in the .h file if you want to configure more parameters.
    */
   bmm150.setMeasurementXYZ();
-
-
   delay(1000);
-
+  setInitMagData();
 }
 void printInfo(){
   display.clearDisplay();
@@ -128,22 +144,57 @@ void sendAzimutCommand(float azimut) {
     delay(50);
 	}
   lastOutputCommand = azimutDevice1Command;
+}
 
-  
+void sendMagDataChanges() {
+  Serial.print("Sending magDataChanged commend: ");
+  Serial.println(magDataChangedCommand);
+  for (int x=0; x<3; x=x+1) {
+  // Send the command to the LoRa module
+    LoRa.beginPacket();
+    LoRa.print(magDataChangedCommand);
+    LoRa.endPacket();
+    delay(50);
+	}
+  lastOutputCommand = magDataChangedCommand;
 }
  void checkAzimut(){
   sBmm150MagData_t magData = bmm150.getGeomagneticData();
-  Serial.print("mag x = "); Serial.print(magData.x); Serial.println(" uT");
-  Serial.print("mag y = "); Serial.print(magData.y); Serial.println(" uT");
-  Serial.print("mag z = "); Serial.print(magData.z); Serial.println(" uT");
+  
+  double magDataX = magData.x;
+  double magDataY = magData.y;
+  double magDataZ = magData.z;
+  Serial.print("mag x = "); Serial.print(magDataX); Serial.println(" uT");
+  Serial.print("mag y = "); Serial.print(magDataY); Serial.println(" uT");
+  Serial.print("mag z = "); Serial.print(magDataZ); Serial.println(" uT");
 
   azimut = bmm150.getCompassDegree();
   Serial.print("the angle between the pointing direction and north (counterclockwise) is:");
   Serial.println(azimut);
   Serial.println("--------------------------------");
-  delay(100);
 
+  azimut = azimut - minusValueForAzimuth + plusValueForAzimuth;
+  Serial.print("corrected azimut is:");
+  Serial.println(azimut);
+  Serial.println("--------------------------------");
+  delay(100);
  }
+
+void checkMagData(){
+  sBmm150MagData_t magData = bmm150.getGeomagneticData();
+  int magDataX = magData.x;
+  int magDataY = magData.y;
+  int magDataZ = magData.z;
+  if (abs(magDataX - initMagDataX) > 0 || abs(magDataY - initMagDataY) > 0 || abs(magDataZ - initMagDataZ) > 0) {
+    Serial.println("Magnetic data has changed significantly.");
+    sendMagDataChanges();
+    initMagDataX = magDataX;
+    initMagDataY = magDataY;
+    initMagDataZ = magDataZ;
+  }
+
+}
+
 
 void loop() {  
   printInfo();
@@ -206,5 +257,12 @@ void loop() {
       checkAzimut();
       sendAzimutCommand(azimut);
     }
+  }
+  counter++;
+  if(counter - lastAzimutCheckin > 100){
+    checkMagData();
+    checkAzimut();
+    sendAzimutCommand(azimut);
+    lastAzimutCheckin = counter;
   }
 }
