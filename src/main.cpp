@@ -16,9 +16,9 @@
 #define RST     14   // GPIO14 -- RESET (If Lora does not work, replace it with GPIO14)
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
-const String deviceKey = "killRusnya_2";
+const String deviceKey = "killRusnya_5";
 
-const float minusValueForAzimuth = 30.3;
+const float minusValueForAzimuth = 0;
 const float plusValueForAzimuth = 0;
 
 const int module1OutputPin = 4;
@@ -39,16 +39,16 @@ const String azimutDevice1Command = "azimutDevice1";
 const String magDataChangedCommand = "magDataChanged";
 String module1State = "disabledModule1";
 String module2State = "disabledModule2";
-String moduleName ="Vitalikiki M1";
+String moduleName ="Vitalikiki M1_5";
 String lastInputCommand = "";
 String lastOutputCommand = "";
 float azimut;
 int counter = 0;
 int lastAzimutCheckin = 0;
 
-int initMagDataX = 0;
-int initMagDataY = 0;
-int initMagDataZ = 0;
+// int initMagDataX = 0;
+// int initMagDataY = 0;
+// int initMagDataZ = 0;
 
 // for LED 
 #define OLED_I2C_ADDRESS 0x3C
@@ -63,12 +63,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 DFRobot_BMM150_I2C bmm150(&Wire, I2C_ADDRESS_4);
 
-void setInitMagData(){
-  sBmm150MagData_t magData = bmm150.getGeomagneticData();
-  initMagDataX = magData.x;
-  initMagDataY = magData.y;
-  initMagDataZ = magData.z;  
-}
+// void setInitMagData(){
+//   sBmm150MagData_t magData = bmm150.getGeomagneticData();
+//   initMagDataX = magData.x;
+//   initMagDataY = magData.y;
+//   initMagDataZ = magData.z;  
+// }
 
 void setup() {
   Serial.begin(9600);
@@ -105,7 +105,7 @@ void setup() {
    */
   bmm150.setMeasurementXYZ();
   delay(1000);
-  setInitMagData();
+  // setInitMagData();
 }
 void printInfo(){
   display.clearDisplay();
@@ -180,20 +180,19 @@ void sendMagDataChanges() {
   delay(100);
  }
 
-void checkMagData(){
-  sBmm150MagData_t magData = bmm150.getGeomagneticData();
-  int magDataX = magData.x;
-  int magDataY = magData.y;
-  int magDataZ = magData.z;
-  if (abs(magDataX - initMagDataX) > 0 || abs(magDataY - initMagDataY) > 0 || abs(magDataZ - initMagDataZ) > 0) {
-    Serial.println("Magnetic data has changed significantly.");
-    sendMagDataChanges();
-    initMagDataX = magDataX;
-    initMagDataY = magDataY;
-    initMagDataZ = magDataZ;
-  }
-
-}
+// void checkMagData(){
+//   sBmm150MagData_t magData = bmm150.getGeomagneticData();
+//   int magDataX = magData.x;
+//   int magDataY = magData.y;
+//   int magDataZ = magData.z;
+//   if (abs(magDataX - initMagDataX) > 0 || abs(magDataY - initMagDataY) > 0 || abs(magDataZ - initMagDataZ) > 0) {
+//     Serial.println("Magnetic data has changed significantly.");
+//     sendMagDataChanges();
+//     initMagDataX = magDataX;
+//     initMagDataY = magDataY;
+//     initMagDataZ = magDataZ;
+//   }
+// }
 
 
 void loop() {  
@@ -260,9 +259,9 @@ void loop() {
   }
   counter++;
   if(counter - lastAzimutCheckin > 100){
-    checkMagData();
+    // checkMagData();
     checkAzimut();
-    sendAzimutCommand(azimut);
+    // sendAzimutCommand(azimut);
     lastAzimutCheckin = counter;
   }
 }
