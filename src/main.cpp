@@ -8,7 +8,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
-#include <DFRobot_QMC5883.h>
+#include "MPU9250.h"
 #define SCK     5    // GPIO5  -- SCK
 #define MISO    19   // GPIO19 -- MISO
 #define MOSI    27   // GPIO27 -- MOSI
@@ -16,10 +16,17 @@
 #define RST     14   // GPIO14 -- RESET (If Lora does not work, replace it with GPIO14)
 #define DI0     26   // GPIO26 -- IRQ(Interrupt Request)
 #define BAND    433E6
-const String deviceKey = "killRusnya_2";
 
-const float minusValueForAzimuth = 0;
-const float plusValueForAzimuth = 0;
+// 18
+#define STEP_PIN 12
+// 19
+#define DIR_PIN 13
+// 21
+#define ENABLE_PIN 15
+
+const String deviceKey = "killRusnya_2";
+float minusValueForAzimuth = 0;
+float plusValueForAzimuth = 0;
 
 const int module1OutputPin = 4;
 const int module2OutputPin = 25;
@@ -37,6 +44,10 @@ const String module1StateKey = "module1State";
 const String module2StateKey = "module2State";
 const String azimutDevice1Command = "azimutDevice1";
 const String magDataChangedCommand = "magDataChanged";
+const String correctAzimutPlusCommand = "correctAzimutPlus";
+const String correctAzimutMinusCommand = "correctAzimutMinus";
+const String turnRightCommand = "turnRight";
+const String turnLeftCommand = "turnLeft";
 String module1State = "disabledModule1";
 String module2State = "disabledModule2";
 String moduleName ="Vitalikiki M1";
@@ -68,46 +79,37 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
  * @param Wire The I2C bus interface.
  * @param QMC5883L_ADDRESS The I2C address of the QMC5883L sensor.
  */
-DFRobot_QMC5883 compass(&Wire, 0x1E);
+#define CS_PIN 2   // Chip Select (NCS)
+#define SCK 14     // HSPI Clock (SCL)
+#define MISO 12    // HSPI MISO (Not labeled on your board, but needed)
+#define MOSI 13 
 
-// DFRobot_BMM150_I2C bmm150(&Wire, I2C_ADDRESS_4);
 
-// void setInitMagData(){
-//   sBmm150MagData_t magData = bmm150.getGeomagneticData();
-//   initMagDataX = magData.x;
-//   initMagDataY = magData.y;
-//   initMagDataZ = magData.z;  
-// }
+MPU9250 IMU(Wire,0x68);
+int status;
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
   Serial.println("LoRa Receiver");
 
- // Initialize I2C with specific SCL and SDA pins
-  Wire.begin(21, 22);
-
-  // I2C Scanner
-  Serial.println("Scanning for I2C devices...");
-  byte error, address;
-  int nDevices = 0;
-  for (address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (address < 16) Serial.print("0");
-      Serial.print(address, HEX);
-      Serial.println(" !");
-      nDevices++;
-    } else if (error == 4) {
-      Serial.print("Unknown error at address 0x");
-      if (address < 16) Serial.print("0");
-      Serial.println(address, HEX);
-    }
+  status = IMU.begin();
+  
+  if (status < 0) {
+    Serial.println("IMU initialization unsuccessful");
+    Serial.println("Check IMU wiring or try cycling power");
+    Serial.print("Status: ");
+    Serial.println(status);
+    while(1) {}
   }
-  if (nDevices == 0) Serial.println("No I2C devices found\n");
-  else Serial.println("done\n");
+
+  IMU.setAccelRange(MPU9250::ACCEL_RANGE_8G);
+  // setting the gyroscope full scale range to +/-500 deg/s
+  IMU.setGyroRange(MPU9250::GYRO_RANGE_500DPS);
+  // setting DLPF bandwidth to 20 Hz
+  IMU.setDlpfBandwidth(MPU9250::DLPF_BANDWIDTH_20HZ);
+  // setting SRD to 19 for a 50 Hz update rate
+  IMU.setSrd(19);
 
   SPI.begin();
   LoRa.setPins(SS,RST,DI0);
@@ -118,7 +120,16 @@ void setup() {
     while (1);
   }
   pinMode(module1OutputPin, OUTPUT); 
-  pinMode(module2OutputPin, OUTPUT); 
+  pinMode(module2OutputPin, OUTPUT);
+
+
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(ENABLE_PIN, OUTPUT);
+  
+  digitalWrite(ENABLE_PIN, LOW); // Увімкнути драйвер
+  digitalWrite(DIR_PIN, HIGH);
+
       // Initialize the display
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -126,35 +137,6 @@ void setup() {
   }
   display.display();
   delay(2000); // Pause for 2 seconds
-  // while(bmm150.begin()){
-  //   Serial.println("bmm150 init failed, Please try again!");
-  //   delay(1000);
-  // } Serial.println("bmm150 init success!");
-  // bmm150.setOperationMode(BMM150_POWERMODE_NORMAL);
-  // bmm150.setPresetMode(BMM150_PRESETMODE_HIGHACCURACY);
-  // bmm150.setRate(BMM150_DATA_RATE_10HZ);
-
-  /**!
-   * Enable the measurement at x-axis, y-axis and z-axis, default to be enabled, no config required, the geomagnetic data at x, y and z will be incorrect when disabled.
-   * Refer to setMeasurementXYZ() function in the .h file if you want to configure more parameters.
-   */
-  // bmm150.setMeasurementXYZ();
-  // delay(1000);
-  // setInitMagData();
-
-  // Initialize the compass
-  if (!compass.begin()) {
-    Serial.println("Could not find a valid QMC5883 sensor, check wiring!");
-    while (1);
-  }
-  sVector_t mag = compass.readRaw();
-  initMagDataX = mag.XAxis;
-  initMagDataY = mag.YAxis;
-  initMagDataZ = mag.ZAxis; // Corrected to use ZAxis
-  // compass.setRange(QMC5883_RANGE_8GA);
-  // compass.setMeasurementMode(QMC5883_CONTINOUS);
-  // compass.setDataRate(QMC5883_DATARATE_200HZ);
-  // compass.setSamples(QMC5883_SAMPLES_2);
 }
 void printInfo(){
   display.clearDisplay();
@@ -207,47 +189,94 @@ void sendMagDataChanges() {
 	}
   lastOutputCommand = magDataChangedCommand;
 }
- void checkAzimut(){
-  float declinationAngle = (4.0 + (26.0 / 60.0)) / (180 / PI);
-  compass.setDeclinationAngle(declinationAngle);
-  sVector_t mag = compass.readRaw();
-  double x = mag.XAxis;
-  double y = mag.YAxis;
-  double z = mag.ZAxis; // Corrected to use ZAxis
-  azimut = mag.HeadingDegress; // Corrected to use getHeadingDegrees method
-  Serial.print("mag x = "); Serial.print(x); Serial.println(" uT");
-  Serial.print("mag y = "); Serial.print(y); Serial.println(" uT");
-  Serial.print("mag z = "); Serial.print(z); Serial.println(" uT");
 
-  // azimuth = azimuth - minusValueForAzimuth + plusValueForAzimuth;
-  
-  // Serial.print("the angle between the pointing direction and north (counterclockwise) is:");
-  // Serial.println(azimut);
-  // Serial.println("--------------------------------");
+void turnLeft(int degrees) {
+    const int stepsPerRevolution = 200; // 200 кроків = 360°
+    const int microsteps = 8;  // Використовуємо 1/8 кроку
+    float stepsPerDegree = (stepsPerRevolution * microsteps) / 360.0;
+    int steps = round(degrees * stepsPerDegree);
 
-  // azimut = azimut - minusValueForAzimuth + plusValueForAzimuth;
-  // Serial.print("corrected azimut is:");
-  // Serial.println(azimut);
-  // Serial.println("--------------------------------");
-  delay(100);
- }
+    digitalWrite(DIR_PIN, LOW); // Обертання вліво
 
-void checkMagData(){
-  // float declinationAngle = (4.0 + (26.0 / 60.0)) / (180 / PI);
-  // compass.setDeclinationAngle(declinationAngle);
-  sVector_t mag = compass.readRaw();
-  double x = mag.XAxis;
-  double y = mag.YAxis;
-  double z = mag.ZAxis; // Corrected to use ZAxis
-  if (abs(x - initMagDataX) > 3 || abs(y - initMagDataY) > 3 || abs(z - initMagDataZ) > 3) {
-    Serial.println("Magnetic data has changed significantly.");
-    sendMagDataChanges();
-    initMagDataX = x;
-    initMagDataY = y;
-    initMagDataZ = z;
-  }
+    for (int i = 0; i < steps; i++) {
+        digitalWrite(STEP_PIN, HIGH);
+        delayMicroseconds(500);
+        digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(500);
+    }
 }
 
+void turnRight(int degrees) {
+    const int stepsPerRevolution = 200; // 200 кроків = 360°
+    const int microsteps = 8;  // Використовуємо 1/8 кроку
+    float stepsPerDegree = (stepsPerRevolution * microsteps) / 360.0;
+    int steps = round(degrees * stepsPerDegree);
+
+    digitalWrite(DIR_PIN, HIGH); // Обертання вліво
+
+    for (int i = 0; i < steps; i++) {
+        digitalWrite(STEP_PIN, HIGH);
+        delayMicroseconds(500);
+        digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(500);
+    }
+}
+
+ void checkAzimut(){
+  IMU.readSensor();
+
+  // display the data
+  Serial.print(IMU.getAccelX_mss(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getAccelY_mss(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getAccelZ_mss(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getGyroX_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getGyroY_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getGyroZ_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getMagX_uT(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getMagY_uT(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getMagZ_uT(),6);
+  Serial.print("\t");
+  Serial.println(IMU.getTemperature_C(),6);
+// 1. Отримання значень
+        float accelX = IMU.getAccelX_mss();
+        float accelY = IMU.getAccelY_mss();
+        float accelZ = IMU.getAccelZ_mss();
+        
+        float magX = IMU.getMagX_uT();
+        float magY = IMU.getMagY_uT();
+        float magZ = IMU.getMagZ_uT();
+
+        // 2. Обчислення Roll і Pitch (у радіанах)
+        float roll = atan2(accelY, accelZ);
+        float pitch = atan2(-accelX, sqrt(accelY * accelY + accelZ * accelZ));
+
+        // 3. Коригування магнітометра (Tilt Compensation)
+        float magX_corrected = magX * cos(pitch) + magZ * sin(pitch);
+        float magY_corrected = magX * sin(roll) * sin(pitch) + magY * cos(roll) - magZ * sin(roll) * cos(pitch);
+
+        // 4. Обчислення азимута (у градусах)
+        float azimuth = atan2(magY_corrected, magX_corrected) * 180.0 / PI;
+        if (azimuth < 0) {
+            azimuth += 360.0;  // Нормалізація 0-360°
+        }
+
+        // Вивід даних
+        Serial.print("Roll: "); Serial.print(roll * 180.0 / PI); Serial.print("°\t");
+        Serial.print("Pitch: "); Serial.print(pitch * 180.0 / PI); Serial.print("°\t");
+        Serial.print("Azimuth: "); Serial.print(azimuth); Serial.println("°");
+
+        azimut = azimuth - minusValueForAzimuth + plusValueForAzimuth;
+        Serial.print("Corrected azimut: "); Serial.print(azimut);
+
+ }
 
 void loop() {  
   printInfo();
@@ -298,6 +327,46 @@ void loop() {
       sendCommand(isDisabledModule2Command);
     }
 
+    if (receivedMessage.indexOf(correctAzimutPlusCommand) != -1) {
+      lastInputCommand = receivedMessage;
+      int separatorIndex = receivedMessage.indexOf(':');
+      if (separatorIndex != -1) {
+        String valueStr = receivedMessage.substring(separatorIndex + 1);
+        float plusValue = valueStr.toFloat();
+        plusValueForAzimuth = plusValue;
+      }
+    }
+    if (receivedMessage.indexOf(correctAzimutMinusCommand) != -1) {
+      lastInputCommand = receivedMessage;
+      int separatorIndex = receivedMessage.indexOf(':');
+      if (separatorIndex != -1) {
+        String valueStr = receivedMessage.substring(separatorIndex + 1);
+        float minusValue = valueStr.toFloat();
+        minusValueForAzimuth = minusValue;
+      }
+    }
+    
+    if (receivedMessage.indexOf(turnRightCommand) != -1) {
+      lastInputCommand = receivedMessage;
+      int separatorIndex = receivedMessage.indexOf(':');
+      if (separatorIndex != -1) {
+        String valueStr = receivedMessage.substring(separatorIndex + 1);
+        int value = valueStr.toInt();
+        turnRight(value);
+      }
+    }
+    
+    if (receivedMessage.indexOf(turnLeftCommand) != -1) {
+      lastInputCommand = receivedMessage;
+      int separatorIndex = receivedMessage.indexOf(':');
+      if (separatorIndex != -1) {
+        String valueStr = receivedMessage.substring(separatorIndex + 1);
+        int value = valueStr.toInt();
+        turnLeft(value);
+      }
+    }
+    
+
     if (receivedMessage.indexOf(getModulesStatesCommand+deviceKey) != -1) { 
       lastInputCommand = receivedMessage;
       Serial.println("Get modules states: ");
@@ -311,12 +380,12 @@ void loop() {
       sendAzimutCommand(azimut);
     }
   }
-  counter++;
-  if(counter - lastAzimutCheckin > 100){
-    checkMagData();
-    checkAzimut();
-    sendAzimutCommand(azimut);
-    lastAzimutCheckin = counter;
-  }
-  
+  // counter++;
+  // if(counter - lastAzimutCheckin > 200){
+    // checkMagData();
+    // checkAzimut();
+    // sendAzimutCommand(azimut);
+    // lastAzimutCheckin = counter;
+  // }
+
 }
